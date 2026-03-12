@@ -25,8 +25,5 @@ export const env = {
   // STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || '',
 
   EMAIL_FROM: required('EMAIL_FROM'),
-  SMTP_HOST: required('SMTP_HOST'),
-  SMTP_PORT: required('SMTP_PORT'),
-  SMTP_USER: required('SMTP_USER'),
-  SMTP_PASS: required('SMTP_PASS')
+  RESEND_API_KEY: required('RESEND_API_KEY')
 };

@@ -11,6 +11,13 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+      MONGO_URI: mongodb://127.0.0.1:27017/ci-test
+      JWT_ACCESS_SECRET: ci-access-secret
+      JWT_REFRESH_SECRET: ci-refresh-secret
+      EMAIL_FROM: ci@example.com
+      RESEND_API_KEY: ci-dummy-key
 
     steps:
       - name: Checkout repository

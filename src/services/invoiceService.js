@@ -5,6 +5,57 @@ import { StatusCodes } from 'http-status-codes';
 
 import { clientModel } from '../models/clientModel.js';
 
+const ALLOWED_STATUS_TRANSITIONS = {
+  draft: ['sent', 'cancelled'],
+  sent: ['paid', 'overdue', 'cancelled'],
+  paid: [],
+  overdue: ['paid', 'cancelled'],
+  cancelled: []
+};
+
+function validateStatusTransition(existing, data) {
+  if (existing.status === 'paid') {
+    const attemptedChange = Object.keys(data || {}).length > 0;
+    if (attemptedChange) {
+      throw new ApiError(
+        StatusCodes.BAD_REQUEST,
+        'Paid invoice cannot be modified'
+      );
+    }
+    return;
+  }
+
+  if (existing.status === 'cancelled') {
+    const attemptedChange = Object.keys(data || {}).length > 0;
+    if (attemptedChange) {
+      throw new ApiError(
+        StatusCodes.BAD_REQUEST,
+        'Cancelled invoice cannot be modified'
+      );
+    }
+    return;
+  }
+
+  if (!data.status || data.status === existing.status) {
+    return;
+  }
+
+  const allowed = ALLOWED_STATUS_TRANSITIONS[existing.status] || [];
+  if (!allowed.includes(data.status)) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      `Invalid invoice status transition from ${existing.status} to ${data.status}`
+    );
+  }
+
+  if (existing.status === 'overdue' && data.status === 'paid' && !data.paidAt) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      'paidAt is required to mark an overdue invoice as paid'
+    );
+  }
+}
+
 export const invoiceService = {
   calculateInvoiceTotals(lineItems) {
     let subtotal = 0;
@@ -85,6 +136,8 @@ export const invoiceService = {
   async updateInvoice(id, data, organizationId) {
     const existing = await this.getInvoiceById(id, organizationId);
 
+    validateStatusTransition(existing, data);
+
     const lineItems = data.lineItems ?? existing.lineItems ?? [];
     const { subtotal, taxTotal, total } = this.calculateInvoiceTotals(lineItems);
 
@@ -107,7 +160,11 @@ export const invoiceService = {
       taxTotal,
       total,
       currency: data.currency ?? existing.currency,
-      notes: data.notes ?? existing.notes
+      notes: data.notes ?? existing.notes,
+      sentAt: data.sentAt ?? existing.sentAt,
+      paidAt:
+        data.paidAt ??
+        (data.status === 'paid' && !existing.paidAt ? new Date() : existing.paidAt)
     };
 
     // const updated = await invoiceModel.updateById(id, update);
@@ -130,14 +187,17 @@ export const invoiceService = {
   },
 
   async deleteInvoice(id, organizationId) {
+    const existing = await this.getInvoiceById(id, organizationId);
+
+    if (existing.status === 'paid') {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'Paid invoice cannot be deleted');
+    }
+
     const deleted = await invoiceModel.deleteById(id, organizationId);
 
-if (!deleted.deletedCount) {
-  throw new ApiError(StatusCodes.NOT_FOUND, 'Invoice not found');
-}
-
-    const invoice = await this.getInvoiceById(id, organizationId);
-    await invoiceModel.deleteById(invoice.id);
+    if (!deleted.deletedCount) {
+      throw new ApiError(StatusCodes.NOT_FOUND, 'Invoice not found');
+    }
   }
 };
 

@@ -9,12 +9,10 @@ on:
       - main
 
 jobs:
-  build:
-
+  test:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -22,12 +20,24 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Run lint (if available)
-        run: npm run lint || echo "No lint step"
+        run: npm run lint --if-present
+
+      - name: Run Jest tests with coverage
+        run: npm run test:coverage
+
+  docker:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Build Docker image
         run: docker build -t saas-backend .

@@ -6,7 +6,10 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "NODE_ENV=production node src/server.js"
+    "start": "NODE_ENV=production node src/server.js",
+    "test": "cross-env NODE_ENV=test NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
+    "test:watch": "cross-env NODE_ENV=test NODE_OPTIONS=--experimental-vm-modules jest --watch",
+    "test:coverage": "cross-env NODE_ENV=test NODE_OPTIONS=--experimental-vm-modules jest --coverage"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -41,6 +44,10 @@
     "xss-clean": "^0.1.4"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "cross-env": "^10.1.0",
+    "jest": "^30.3.0",
+    "mongodb-memory-server": "^11.0.1",
+    "nodemon": "^3.1.14",
+    "supertest": "^7.2.2"
   }
 }

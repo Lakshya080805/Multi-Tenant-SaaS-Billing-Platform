@@ -1,9 +1,11 @@
-// import { stripe } from '../config/stripe.js';
+import { stripe } from '../config/stripe.js';
 
 import { env } from '../config/env.js';
 import { logger } from '../config/logger.js';
 import { invoiceModel } from '../models/invoiceModel.js';
 import { paymentModel } from '../models/paymentModel.js';
+
+const processedEventIds = new Set();
 
 /**
  * Handles incoming Stripe webhook events.
@@ -38,6 +40,13 @@ export async function handleStripeWebhook(req, res) {
 
   logger.info(`Stripe webhook received: ${event.type} [${event.id}]`);
 
+  if (processedEventIds.has(event.id)) {
+    logger.info(`Duplicate Stripe event ignored: ${event.type} [${event.id}]`);
+    return res.status(200).json({ received: true, duplicate: true });
+  }
+
+  processedEventIds.add(event.id);
+
   try {
     switch (event.type) {
       case 'payment_intent.succeeded': {
@@ -49,6 +58,7 @@ export async function handleStripeWebhook(req, res) {
         logger.debug(`Unhandled Stripe event type: ${event.type}`);
     }
   } catch (err) {
+    processedEventIds.delete(event.id);
     logger.error(`Error processing Stripe webhook event ${event.type} [${event.id}]: ${err.message}`);
     // Return 500 so Stripe retries the event
     return res.status(500).json({ error: 'Internal error while processing webhook event' });
@@ -80,7 +90,8 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
 
   // Update invoice status to 'paid'
   const updatedInvoice = await invoiceModel.updateById(invoiceId, organizationId, {
-    status: 'paid'
+    status: 'paid',
+    paidAt: new Date()
   });
 
   if (!updatedInvoice) {

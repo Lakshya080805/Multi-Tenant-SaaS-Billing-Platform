@@ -39,13 +39,28 @@ export const paymentModel = {
     return Payment.findOne({ id }).lean();
   },
 
-  async findByInvoice(invoiceId) {
-    return Payment.find({ invoiceId }).lean();
+  async findByInvoice(invoiceId, organizationId) {
+    const query = organizationId
+      ? { invoiceId, organizationId }
+      : { invoiceId };
+    return Payment.find(query).lean();
   },
 
   async findByOrganization(organizationId) {
     return Payment.find({ organizationId }).lean();
   },
+
+  async updateById(id, update) {
+    return Payment.findOneAndUpdate({ id }, update, { new: true }).lean();
+  },
+
+  async updateLatestByInvoice(invoiceId, organizationId, update) {
+    return Payment.findOneAndUpdate(
+      { invoiceId, organizationId },
+      update,
+      { new: true, sort: { createdAt: -1 } }
+    ).lean();
+  }
 
   // async updateByStripePaymentIntentId(stripePaymentIntentId, update) {
   //   return Payment.findOneAndUpdate(

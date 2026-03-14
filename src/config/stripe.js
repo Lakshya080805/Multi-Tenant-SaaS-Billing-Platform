@@ -1,11 +1,8 @@
-// import Stripe from 'stripe';
-// import { env } from './env.js';
+import Stripe from 'stripe';
 
-// if (!env.STRIPE_SECRET_KEY) {
-//   throw new Error('STRIPE_SECRET_KEY is required to initialize Stripe');
-// }
+const stripeSecret = process.env.STRIPE_SECRET_KEY || 'sk_test_dummy';
 
-// export const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
-//   apiVersion: '2024-06-20'
-// });
+export const stripe = new Stripe(stripeSecret, {
+	apiVersion: '2024-06-20'
+});
 

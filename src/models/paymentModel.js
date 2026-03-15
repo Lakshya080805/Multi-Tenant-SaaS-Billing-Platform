@@ -6,7 +6,9 @@ const PaymentSchema = new mongoose.Schema(
     organizationId: { type: String, required: true, index: true },
     invoiceId: { type: String, required: true, index: true },
 
-    // stripePaymentIntentId: { type: String, trim: true },
+    razorpayOrderId: { type: String, trim: true },
+    razorpayPaymentId: { type: String, trim: true },
+    razorpaySignature: { type: String, trim: true },
 
     amount: { type: Number, required: true, min: 0 },
     currency: { type: String, default: 'INR' },
@@ -15,8 +17,7 @@ const PaymentSchema = new mongoose.Schema(
       enum: ['pending', 'succeeded', 'failed'],
       default: 'pending'
     },
-    // paymentMethod: { type: String, trim: true }
-    provider: { type: String, default: "mock" }
+    provider: { type: String, default: 'mock' }
   },
   { timestamps: { createdAt: true, updatedAt: false } }
 );
@@ -39,6 +40,10 @@ export const paymentModel = {
     return Payment.findOne({ id }).lean();
   },
 
+  async findByRazorpayOrderId(razorpayOrderId) {
+    return Payment.findOne({ razorpayOrderId }).lean();
+  },
+
   async findByInvoice(invoiceId, organizationId) {
     const query = organizationId
       ? { invoiceId, organizationId }
@@ -54,6 +59,14 @@ export const paymentModel = {
     return Payment.findOneAndUpdate({ id }, update, { new: true }).lean();
   },
 
+  async updateByRazorpayOrderId(razorpayOrderId, update) {
+    return Payment.findOneAndUpdate(
+      { razorpayOrderId },
+      update,
+      { new: true }
+    ).lean();
+  },
+
   async updateLatestByInvoice(invoiceId, organizationId, update) {
     return Payment.findOneAndUpdate(
       { invoiceId, organizationId },
@@ -61,13 +74,5 @@ export const paymentModel = {
       { new: true, sort: { createdAt: -1 } }
     ).lean();
   }
-
-  // async updateByStripePaymentIntentId(stripePaymentIntentId, update) {
-  //   return Payment.findOneAndUpdate(
-  //     { stripePaymentIntentId },
-  //     update,
-  //     { new: true }
-  //   ).lean();
-  // }
 };
 

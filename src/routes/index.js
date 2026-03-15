@@ -1,7 +1,6 @@
 import express from 'express';
 import { authRouter } from './v1/authRoutes.js';
 import { orgRouter } from './v1/orgRoutes.js';
-import { billingRouter } from './v1/billingRoutes.js';
 import { clientRouter } from './v1/clientRoutes.js';
 import { invoiceRouter } from './v1/invoiceRoutes.js';
 import { paymentRouter } from './v1/paymentRoutes.js';
@@ -28,7 +27,6 @@ apiRouter.get('/protected', authenticate, (req, res) => {
 
 apiRouter.use('/v1/auth', authRouter);
 apiRouter.use('/v1/orgs', orgRouter);
-apiRouter.use('/v1/billing', billingRouter);
 apiRouter.use('/v1/clients', clientRouter);
 apiRouter.use('/v1/invoices', invoiceRouter);
 apiRouter.use('/v1/payments', paymentRouter);

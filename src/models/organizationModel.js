@@ -3,8 +3,7 @@ import mongoose from 'mongoose';
 const OrganizationSchema = new mongoose.Schema(
   {
     id: { type: String, required: true, unique: true, index: true },
-    name: { type: String, required: true, trim: true },
-    stripeCustomerId: { type: String, default: null }
+    name: { type: String, required: true, trim: true }
   },
   { timestamps: true }
 );

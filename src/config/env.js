@@ -21,9 +21,6 @@ export const env = {
   JWT_ACCESS_EXPIRES_IN: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
 
-  // STRIPE_SECRET_KEY: required('STRIPE_SECRET_KEY'),
-  // STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || '',
-
   EMAIL_FROM: required('EMAIL_FROM'),
   RESEND_API_KEY: required('RESEND_API_KEY')
 };

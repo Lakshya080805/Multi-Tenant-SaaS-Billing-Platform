@@ -15,6 +15,8 @@ import { notFoundHandler } from './middleware/notFoundMiddleware.js';
 import { errorHandler } from './middleware/errorMiddleware.js';
 import { rateLimiter } from './middleware/rateLimitMiddleware.js';
 import { swaggerSpec } from './config/swagger.js';
+import { handleRazorpayWebhook } from './webhooks/razorpayWebhook.js';
+import { asyncHandler } from './utils/asyncHandler.js';
 import mongoose from 'mongoose';
 
 // import { webhookRouter } from './routes/webhookRoutes.js';
@@ -31,7 +33,29 @@ export function createApp() {
       credentials: true
     })
   );
-  app.use(express.json({ limit: '10mb' }));
+  app.post(
+    '/api/v1/webhooks/razorpay',
+    express.raw({ type: 'application/json', limit: '10mb' }),
+    (req, res, next) => {
+      req.rawBody = req.body.toString('utf8');
+
+      try {
+        req.body = JSON.parse(req.rawBody || '{}');
+        next();
+      } catch (error) {
+        next(error);
+      }
+    },
+    asyncHandler(handleRazorpayWebhook)
+  );
+  app.use(
+    express.json({
+      limit: '10mb',
+      verify: (req, res, buf) => {
+        req.rawBody = buf.toString('utf8');
+      }
+    })
+  );
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
 

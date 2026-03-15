@@ -3,16 +3,34 @@ import { paymentService } from '../services/paymentService.js';
 import { sendSuccess } from '../utils/apiResponse.js';
 
 export const paymentController = {
+  createOrder: async (req, res) => {
+    const organizationId = req.user.organizationId;
+    const { invoiceId } = req.body;
+
+    const order = await paymentService.createPaymentForInvoice(invoiceId, organizationId);
+
+    sendSuccess(res, StatusCodes.OK, order);
+  },
+
+  verifyPayment: async (req, res) => {
+    const organizationId = req.user.organizationId;
+    const {
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature
+    } = req.body;
+
+    const payment = await paymentService.verifyRazorpayPayment(
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature,
+      organizationId
+    );
+
+    sendSuccess(res, StatusCodes.OK, payment);
+  },
+
   createInvoicePayment: async (req, res) => {
-    // const organizationId = req.user.organizationId;
-    // const { invoiceId } = req.params;
-
-    // const { clientSecret } = await paymentService.createPaymentForInvoice(invoiceId, organizationId);
-
-    // sendSuccess(res, StatusCodes.CREATED, { clientSecret });
-
-    // Mock implementation for testing without Stripe integration
-
     const organizationId = req.user.organizationId;
     const { invoiceId } = req.params;
 

@@ -4,6 +4,11 @@ import { paymentModel } from '../models/paymentModel.js';
 import { ApiError } from '../utils/ApiError.js';
 import { StatusCodes } from 'http-status-codes';
 import { logger } from '../config/logger.js';
+import { razorpayService } from './razorpayService.js';
+import { verifyRazorpaySignature } from '../utils/razorpayVerify.js';
+
+const paymentProvider = process.env.PAYMENT_PROVIDER || 'mock';
+const razorpayKey = process.env.RAZORPAY_KEY_ID;
 
 export const paymentService = {
   async createPaymentForInvoice(invoiceId, organizationId) {
@@ -23,36 +28,41 @@ export const paymentService = {
 
     const amount = invoice.total;
 
-    // const currency = (invoice.currency || 'INR').toLowerCase();
-
     const currency = invoice.currency || 'INR';
 
-  //   const { clientSecret, id: paymentIntentId } = await stripeService.createPaymentIntent({
-  //     amount,
-  //     currency,
-  //     metadata: {
-  //       invoiceId: invoice.id,
-  //       organizationId
-  //     }
-  //   });
+    if (paymentProvider === 'razorpay') {
+      const order = await razorpayService.createOrder(amount, currency, invoice.id);
 
-  //   await paymentModel.create({
-  //     id: uuid(),
-  //     organizationId,
-  //     invoiceId: invoice.id,
-  //     stripePaymentIntentId: paymentIntentId,
-  //     amount,
-  //     currency,
-  //     status: 'pending',
-  //     paymentMethod: null
-  //   });
+      const payment = await paymentModel.create({
+        id: uuid(),
+        organizationId,
+        invoiceId: invoice.id,
+        razorpayOrderId: order.id,
+        amount,
+        currency,
+        status: 'pending',
+        provider: 'razorpay'
+      });
 
-  //   return { clientSecret };
-  // },
+      logger.info('Razorpay order created', {
+        paymentId: payment.id,
+        invoiceId: invoice.id,
+        organizationId,
+        orderId: order.id,
+        amount,
+        currency,
+        provider: 'razorpay'
+      });
 
-  // mock payment 
+      return {
+        orderId: order.id,
+        amount: order.amount,
+        currency,
+        razorpayKey
+      };
+    }
 
-  const payment = await paymentModel.create({
+    const payment = await paymentModel.create({
       id: uuid(),
       organizationId,
       invoiceId: invoice.id,
@@ -92,6 +102,57 @@ export const paymentService = {
     const payments = await paymentModel.findByInvoice(invoiceId);
 
     return payments;
+  },
+
+  async verifyRazorpayPayment(
+    razorpayOrderId,
+    razorpayPaymentId,
+    razorpaySignature,
+    organizationId
+  ) {
+    const razorpaySecret = process.env.RAZORPAY_KEY_SECRET;
+
+    if (!razorpaySecret) {
+      throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, 'Razorpay key secret is not configured');
+    }
+
+    const isValidSignature = verifyRazorpaySignature(
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature,
+      razorpaySecret
+    );
+
+    if (!isValidSignature) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid Razorpay payment signature');
+    }
+
+    const payment = await paymentModel.findByRazorpayOrderId(razorpayOrderId);
+
+    if (!payment || payment.organizationId !== organizationId) {
+      throw new ApiError(StatusCodes.NOT_FOUND, 'Payment not found');
+    }
+
+    const updatedPayment = await paymentModel.updateById(payment.id, {
+      razorpayPaymentId,
+      razorpaySignature,
+      status: 'succeeded'
+    });
+
+    await invoiceModel.updateById(payment.invoiceId, organizationId, {
+      status: 'paid',
+      paidAt: new Date()
+    });
+
+    logger.info('Razorpay payment verified', {
+      paymentId: payment.id,
+      invoiceId: payment.invoiceId,
+      organizationId,
+      razorpayOrderId,
+      razorpayPaymentId
+    });
+
+    return updatedPayment;
   }
 };
 

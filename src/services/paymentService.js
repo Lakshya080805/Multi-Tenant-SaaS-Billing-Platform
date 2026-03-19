@@ -4,8 +4,8 @@ import { paymentModel } from '../models/paymentModel.js';
 import { ApiError } from '../utils/ApiError.js';
 import { StatusCodes } from 'http-status-codes';
 import { logger } from '../config/logger.js';
-import { razorpayService } from './razorpayService.js';
-import { verifyRazorpaySignature } from '../utils/razorpayVerify.js';
+import { getProvider } from '../providers/index.js';
+import mongoose from 'mongoose';
 
 const paymentProvider = process.env.PAYMENT_PROVIDER || 'mock';
 const razorpayKey = process.env.RAZORPAY_KEY_ID;
@@ -27,33 +27,44 @@ export const paymentService = {
     }
 
     const amount = invoice.total;
-
     const currency = invoice.currency || 'INR';
 
+    // Get the configured payment provider
+    const provider = getProvider(paymentProvider);
+
+    // Create order via provider
+    const order = await provider.createOrder(amount, currency, invoice.id);
+
+    // Create payment record with provider-specific order ID
+    const paymentData = {
+      id: uuid(),
+      organizationId,
+      invoiceId: invoice.id,
+      amount,
+      currency,
+      status: paymentProvider === 'razorpay' ? 'pending' : 'succeeded',
+      provider: paymentProvider
+    };
+
+    // Store provider-specific order ID
     if (paymentProvider === 'razorpay') {
-      const order = await razorpayService.createOrder(amount, currency, invoice.id);
+      paymentData.razorpayOrderId = order.id;
+    }
 
-      const payment = await paymentModel.create({
-        id: uuid(),
-        organizationId,
-        invoiceId: invoice.id,
-        razorpayOrderId: order.id,
-        amount,
-        currency,
-        status: 'pending',
-        provider: 'razorpay'
-      });
+    const payment = await paymentModel.create(paymentData);
 
-      logger.info('Razorpay order created', {
-        paymentId: payment.id,
-        invoiceId: invoice.id,
-        organizationId,
-        orderId: order.id,
-        amount,
-        currency,
-        provider: 'razorpay'
-      });
+    logger.info(`${paymentProvider} order created`, {
+      paymentId: payment.id,
+      invoiceId: invoice.id,
+      organizationId,
+      orderId: order.id,
+      amount,
+      currency,
+      provider: paymentProvider
+    });
 
+    // For Razorpay, return order details for client-side payment widget
+    if (paymentProvider === 'razorpay') {
       return {
         orderId: order.id,
         amount: order.amount,
@@ -62,26 +73,7 @@ export const paymentService = {
       };
     }
 
-    const payment = await paymentModel.create({
-      id: uuid(),
-      organizationId,
-      invoiceId: invoice.id,
-      amount,
-      currency,
-      status: 'succeeded',
-      provider: 'mock'
-    });
-
-    logger.info('Payment created', {
-      paymentId: payment.id,
-      invoiceId: invoice.id,
-      organizationId,
-      amount,
-      currency,
-      provider: 'mock'
-    });
-
-    // update invoice status
+    // For mock provider, auto-confirm payment and mark invoice as paid
     await invoiceModel.updateById(invoice.id, organizationId, {
       status: 'paid',
       paidAt: new Date()
@@ -110,22 +102,11 @@ export const paymentService = {
     razorpaySignature,
     organizationId
   ) {
-    const razorpaySecret = process.env.RAZORPAY_KEY_SECRET;
+    // Get the Razorpay provider for signature verification
+    const provider = getProvider('razorpay');
 
-    if (!razorpaySecret) {
-      throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, 'Razorpay key secret is not configured');
-    }
-
-    const isValidSignature = verifyRazorpaySignature(
-      razorpayOrderId,
-      razorpayPaymentId,
-      razorpaySignature,
-      razorpaySecret
-    );
-
-    if (!isValidSignature) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid Razorpay payment signature');
-    }
+    // Verify the payment signature via provider
+    await provider.verifyPayment(razorpayOrderId, razorpayPaymentId, razorpaySignature);
 
     const payment = await paymentModel.findByRazorpayOrderId(razorpayOrderId);
 
@@ -133,16 +114,47 @@ export const paymentService = {
       throw new ApiError(StatusCodes.NOT_FOUND, 'Payment not found');
     }
 
-    const updatedPayment = await paymentModel.updateById(payment.id, {
+    const paymentUpdate = {
       razorpayPaymentId,
       razorpaySignature,
       status: 'succeeded'
-    });
-
-    await invoiceModel.updateById(payment.invoiceId, organizationId, {
+    };
+    const invoiceUpdate = {
       status: 'paid',
       paidAt: new Date()
-    });
+    };
+
+    let updatedPayment;
+    const session = await mongoose.startSession();
+
+    try {
+      await session.withTransaction(async () => {
+        updatedPayment = await paymentModel.updateById(payment.id, paymentUpdate, { session });
+
+        await invoiceModel.updateById(payment.invoiceId, organizationId, invoiceUpdate, { session });
+      });
+    } catch (error) {
+      const transactionNotSupported =
+        error?.codeName === 'IllegalOperation' ||
+        error?.message?.includes('Transaction numbers are only allowed on a replica set member or mongos');
+
+      if (!transactionNotSupported) {
+        throw error;
+      }
+
+      // Known limitation: local standalone MongoDB does not support transactions.
+      // We fall back to sequential writes for development compatibility.
+      logger.warn('Mongo transactions unavailable; falling back to sequential payment verify updates', {
+        paymentId: payment.id,
+        invoiceId: payment.invoiceId,
+        organizationId
+      });
+
+      updatedPayment = await paymentModel.updateById(payment.id, paymentUpdate);
+      await invoiceModel.updateById(payment.invoiceId, organizationId, invoiceUpdate);
+    } finally {
+      await session.endSession();
+    }
 
     logger.info('Razorpay payment verified', {
       paymentId: payment.id,

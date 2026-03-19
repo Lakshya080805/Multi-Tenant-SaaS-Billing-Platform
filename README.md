@@ -362,7 +362,8 @@ DELETE /api/v1/invoices/:id
 ```http
 POST   /api/v1/payments/create-order
 POST   /api/v1/payments/verify
-GET    /api/v1/payments/invoice/:invoiceId
+POST   /api/v1/payments/invoice/:invoiceId/pay
+GET    /api/v1/payments/invoice/:invoiceId/payments
 ```
 
 ### 🔔 Webhooks

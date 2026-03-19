@@ -129,8 +129,8 @@ export const invoiceService = {
     return invoice;
   },
 
-  async getAllInvoices(organizationId) {
-    return invoiceModel.findByOrganization(organizationId);
+  async getAllInvoices(organizationId, pagination = {}) {
+    return invoiceModel.findByOrganization(organizationId, pagination);
   },
 
   async updateInvoice(id, data, organizationId) {

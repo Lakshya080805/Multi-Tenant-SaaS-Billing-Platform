@@ -16,7 +16,8 @@ export const invoiceController = {
 
   getAllInvoices: async (req, res) => {
     const organizationId = req.user.organizationId;
-    const invoices = await invoiceService.getAllInvoices(organizationId);
+    const { page, pageSize } = req.query;
+    const invoices = await invoiceService.getAllInvoices(organizationId, { page, pageSize });
     sendSuccess(res, StatusCodes.OK, invoices);
   },
 

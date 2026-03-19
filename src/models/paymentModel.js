@@ -51,12 +51,23 @@ export const paymentModel = {
     return Payment.find(query).lean();
   },
 
-  async findByOrganization(organizationId) {
-    return Payment.find({ organizationId }).lean();
+  async findByOrganization(organizationId, pagination = {}) {
+    const page = Math.max(Number.parseInt(pagination.page, 10) || 1, 1);
+    const pageSize = Math.min(
+      Math.max(Number.parseInt(pagination.pageSize, 10) || 20, 1),
+      100
+    );
+    const skip = (page - 1) * pageSize;
+
+    return Payment.find({ organizationId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(pageSize)
+      .lean();
   },
 
-  async updateById(id, update) {
-    return Payment.findOneAndUpdate({ id }, update, { new: true }).lean();
+  async updateById(id, update, options = {}) {
+    return Payment.findOneAndUpdate({ id }, update, { new: true, ...options }).lean();
   },
 
   async updateByRazorpayOrderId(razorpayOrderId, update) {

@@ -90,6 +90,19 @@ invoiceRouter.post(
  *     tags: [Invoices]
  *     parameters:
  *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *       - in: query
  *         name: status
  *         schema:
  *           type: string

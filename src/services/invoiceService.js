@@ -130,6 +130,12 @@ export const invoiceService = {
   },
 
   async getAllInvoices(organizationId, pagination = {}) {
+    const allowedStatuses = new Set(['draft', 'sent', 'paid', 'overdue', 'cancelled']);
+
+    if (pagination.status && !allowedStatuses.has(pagination.status)) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid status filter');
+    }
+
     return invoiceModel.findByOrganization(organizationId, pagination);
   },
 

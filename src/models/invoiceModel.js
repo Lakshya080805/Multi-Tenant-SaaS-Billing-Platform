@@ -75,7 +75,17 @@ export const invoiceModel = {
     );
     const skip = (page - 1) * pageSize;
 
-    return Invoice.find({ organizationId })
+    const query = { organizationId };
+
+    if (pagination.status) {
+      query.status = pagination.status;
+    }
+
+    if (pagination.clientId) {
+      query.clientId = pagination.clientId;
+    }
+
+    return Invoice.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(pageSize)

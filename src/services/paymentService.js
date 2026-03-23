@@ -29,11 +29,42 @@ export const paymentService = {
     const amount = invoice.total;
     const currency = invoice.currency || 'INR';
 
+    if (paymentProvider === 'razorpay' && currency !== 'INR') {
+      throw new ApiError(
+        StatusCodes.BAD_REQUEST,
+        `Razorpay create-order requires INR currency for this setup. Invoice currency is ${currency}`
+      );
+    }
+
     // Get the configured payment provider
     const provider = getProvider(paymentProvider);
 
     // Create order via provider
-    const order = await provider.createOrder(amount, currency, invoice.id);
+    let order;
+    try {
+      order = await provider.createOrder(amount, currency, invoice.id);
+    } catch (error) {
+      const providerMessage =
+        error?.error?.description ||
+        error?.description ||
+        error?.message ||
+        'Failed to create payment order';
+
+      logger.error('Payment provider create-order failed', {
+        provider: paymentProvider,
+        invoiceId: invoice.id,
+        organizationId,
+        amount,
+        currency,
+        providerMessage
+      });
+
+      if (paymentProvider === 'razorpay') {
+        throw new ApiError(StatusCodes.BAD_REQUEST, `Razorpay order creation failed: ${providerMessage}`);
+      }
+
+      throw error;
+    }
 
     // Create payment record with provider-specific order ID
     const paymentData = {

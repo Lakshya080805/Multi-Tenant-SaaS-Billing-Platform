@@ -22,6 +22,7 @@ paymentRouter.use(authenticate);
  * /v1/payments/create-order:
  *   post:
  *     summary: Create a Razorpay payment order
+ *     description: Creates an order for Razorpay checkout. For this setup, invoice currency must be INR.
  *     tags: [Payments]
  *     security:
  *       - bearerAuth: []
@@ -63,7 +64,7 @@ paymentRouter.use(authenticate);
  *                       type: string
  *                       example: rzp_test_1234567890
  *       400:
- *         description: Validation failed
+ *         description: Validation failed or unsupported currency for Razorpay (INR required)
  *       404:
  *         description: Invoice not found
  *       401:

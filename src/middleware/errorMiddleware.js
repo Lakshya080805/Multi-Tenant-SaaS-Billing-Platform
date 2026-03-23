@@ -16,10 +16,12 @@ export function errorHandler(err, req, res, next) {
   const status = isKnown ? err.statusCode : isMongooseValidation ? StatusCodes.BAD_REQUEST : StatusCodes.INTERNAL_SERVER_ERROR;
   const message = isKnown ? err.message : isMongooseValidation ? Object.values(err.errors).map(e => e.message).join(', ') : 'Internal server error';
 
-  logger.error(isKnown ? err.message : err, {
+  logger.error(err?.message || 'Unhandled error', {
+    errorName: err?.name,
     statusCode: status,
     method: req.method,
     url: req.originalUrl,
+    ...(err?.cause ? { cause: String(err.cause) } : {}),
     ...(err.stack ? { stack: err.stack } : {})
   });
 

@@ -104,7 +104,7 @@ export const invoiceService = {
       subtotal,
       taxTotal,
       total,
-      currency: data.currency || 'USD',
+      currency: data.currency || 'INR',
       notes: data.notes
     };
 

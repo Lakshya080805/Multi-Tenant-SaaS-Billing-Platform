@@ -46,6 +46,10 @@ invoiceRouter.use(authenticate);
  *                 type: string
  *                 format: date
  *                 example: "2026-04-09"
+ *               currency:
+ *                 type: string
+ *                 description: Currency code. Defaults to INR if omitted.
+ *                 example: "INR"
  *               lineItems:
  *                 type: array
  *                 items:
@@ -106,7 +110,7 @@ invoiceRouter.post(
  *         name: status
  *         schema:
  *           type: string
- *           enum: [draft, sent, paid, overdue]
+ *           enum: [draft, sent, paid, overdue, cancelled]
  *       - in: query
  *         name: clientId
  *         schema:
@@ -159,7 +163,7 @@ invoiceRouter.get('/:id', requireRole('admin', 'accountant', 'viewer'), asyncHan
  *             properties:
  *               status:
  *                 type: string
- *                 enum: [draft, sent, paid, overdue]
+ *                 enum: [draft, sent, paid, overdue, cancelled]
  *               lineItems:
  *                 type: array
  *               dueDate:

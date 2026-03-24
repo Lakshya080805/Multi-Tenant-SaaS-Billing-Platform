@@ -446,6 +446,142 @@ API → http://localhost:4000
 MongoDB → localhost:27017
 ```
 
+## Redis Phase 0 Foundation
+
+Redis is now wired as foundational infrastructure for caching, rate limiting, and future queue workloads.
+
+### Local
+
+Run the default stack:
+
+```bash
+docker compose up --build
+```
+
+Services:
+
+```http
+API → http://localhost:4000
+MongoDB → localhost:27017
+Redis → localhost:6379
+```
+
+### Staging
+
+Use staging overrides:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.staging.yml up --build -d
+```
+
+### Production
+
+Use production overrides:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.production.yml up --build -d
+```
+
+Required Redis env values:
+
+- REDIS_ENABLED=true
+- REDIS_URL=redis://<host>:6379
+- REDIS_PREFIX=saas-prod
+
+### Health and Metrics
+
+- GET /health includes MongoDB and Redis state
+- GET /health/redis returns Redis connectivity + circuit breaker state
+- GET /metrics/redis returns baseline Redis metrics for dashboards
+
+Baseline dashboard panel guidance is documented in docs/observability/redis-dashboard-baseline.md.
+
+## Scheduler Coordination
+
+Invoice reminder scheduling now uses a leader lock so only one instance executes the cron tick in horizontally scaled deployments.
+
+Environment variables:
+
+- SCHEDULER_INSTANCE_ID=<unique-instance-name>
+- SCHEDULER_LEADER_LOCK_TTL_MS=120000
+
+Behavior:
+
+- Redis-enabled environments use distributed lock coordination across instances.
+- If Redis is unavailable, scheduler falls back to process-local lock coordination.
+
+## Phase 8 Hardening And Runbook
+
+### Workload Memory and Eviction Policies
+
+Redis is split into two workload profiles in Docker-based deployments:
+
+- `redis-core` (locks, idempotency, webhook reliability, scheduler coordination)
+  - `REDIS_CORE_MAXMEMORY` (default: `512mb` local / `1gb` production)
+  - `REDIS_CORE_MAXMEMORY_POLICY` (default: `volatile-ttl`)
+- `redis-queue` (BullMQ queues, retries, dead-letter)
+  - `REDIS_QUEUE_MAXMEMORY` (default: `1gb` local / `2gb` production)
+  - `REDIS_QUEUE_MAXMEMORY_POLICY` (default: `noeviction`)
+
+App environment:
+
+- `REDIS_URL` -> core workload endpoint
+- `QUEUE_REDIS_URL` -> queue workload endpoint
+
+### Persistence Mode
+
+Both Redis workloads are configured with:
+
+- AOF enabled (`appendonly yes`, `appendfsync everysec`) for durability-sensitive paths.
+- RDB snapshots (`save 900 1`, `save 300 10`, `save 60 10000`) for recovery baseline.
+
+### Security Controls
+
+- Redis auth enabled via `REDIS_PASSWORD` and `--requirepass`.
+- Network isolation via internal compose network (`saas_backend`).
+- Staging/production overrides remove host port exposure for Redis (`ports: []`).
+- TLS where applicable:
+  - Use managed Redis with `rediss://` URLs for `REDIS_URL` and `QUEUE_REDIS_URL`.
+
+### Incident Runbook and SLO Alarms
+
+- Incident runbook: `docs/runbooks/redis-incident-runbook.md`
+- SLO alarm baseline: `docs/observability/phase8-slo-alarms.md`
+
+## Load Testing
+
+Two load scripts are available for the next validation phase.
+
+Prerequisites:
+
+- API server running (`npm run dev` or equivalent)
+- Redis enabled (`REDIS_ENABLED=true`)
+- Worker process running for queue drain checks (`npm run dev:worker`)
+
+### 1) Dashboard Endpoints Before vs After Redis Cache
+
+Runs two benchmark passes against dashboard APIs:
+
+- cold pass (cache not warmed)
+- warm pass (cache preloaded)
+
+and prints before/after deltas for throughput and latency plus cache hit/miss metrics.
+
+```bash
+npm run load:dashboard-cache -- --baseUrl http://localhost:4000 --duration 20 --connections 30 --clients 20 --invoices 120
+```
+
+### 2) Queue Throughput and Worker Stability Under Burst Traffic
+
+Creates invoices, enqueues async PDF jobs in burst mode, then polls queue metrics until drain timeout.
+Reports enqueue rate, pending/active peaks, drain success, and failed/dead-letter deltas.
+
+```bash
+npm run load:queue-burst -- --baseUrl http://localhost:4000 --invoices 150 --enqueueConcurrency 50 --drainTimeoutSec 180
+```
+
+If the script exits with code `2`, queue jobs did not drain before timeout and worker capacity/health should be investigated.
+
 
 
 

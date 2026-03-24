@@ -4,6 +4,7 @@ import { clientModel } from '../models/clientModel.js';
 import { organizationModel } from '../models/organizationModel.js';
 import { generateInvoicePdf } from '../services/pdfService.js';
 import { sendInvoiceEmail } from '../services/emailService.js';
+import { enqueueEmailDelivery, enqueuePdfGeneration, logQueueFallback } from '../queues/jobQueueService.js';
 import { ApiError } from '../utils/ApiError.js';
 import { sendSuccess } from '../utils/apiResponse.js';
 
@@ -46,6 +47,25 @@ export const invoiceController = {
 
   downloadInvoicePdf: async (req, res) => {
     const organizationId = req.user.organizationId;
+    const shouldUseAsyncJob = req.query.async === 'true';
+
+    if (shouldUseAsyncJob) {
+      const invoice = await invoiceService.getInvoiceById(req.params.id, organizationId);
+      const queued = await enqueuePdfGeneration({
+        organizationId,
+        invoiceId: invoice.id,
+        requestedByUserId: req.user.id
+      });
+
+      if (queued) {
+        return sendSuccess(res, StatusCodes.ACCEPTED, {
+          queued: true,
+          queue: queued.queueName,
+          jobId: queued.id,
+          invoiceId: invoice.id
+        });
+      }
+    }
 
     const invoice = await invoiceService.getInvoiceById(req.params.id, organizationId);
 
@@ -74,6 +94,24 @@ export const invoiceController = {
     const organizationId = req.user.organizationId;
 
     const invoice = await invoiceService.getInvoiceById(req.params.id, organizationId);
+
+    const queued = await enqueueEmailDelivery({
+      organizationId,
+      invoiceId: invoice.id,
+      requestedByUserId: req.user.id
+    });
+
+    if (queued) {
+      return sendSuccess(res, StatusCodes.ACCEPTED, {
+        queued: true,
+        queue: queued.queueName,
+        jobId: queued.id,
+        invoiceId: invoice.id,
+        message: 'Invoice email delivery queued'
+      });
+    }
+
+    logQueueFallback('email-delivery', 'queue unavailable');
 
     const client = await clientModel.findById(invoice.clientId);
     if (!client || client.organizationId !== organizationId) {

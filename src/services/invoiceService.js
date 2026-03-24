@@ -4,6 +4,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { StatusCodes } from 'http-status-codes';
 
 import { clientModel } from '../models/clientModel.js';
+import { getOrSetCache, keyBuilders, invalidateInvoiceRelatedCache } from './cacheService.js';
 
 const ALLOWED_STATUS_TRANSITIONS = {
   draft: ['sent', 'cancelled'],
@@ -108,7 +109,12 @@ export const invoiceService = {
       notes: data.notes
     };
 
-    return invoiceModel.create(payload);
+    const created = await invoiceModel.create(payload);
+    
+    // Invalidate invoice-related cache after creation
+    await invalidateInvoiceRelatedCache(organizationId, { action: 'createInvoice' });
+    
+    return created;
   },
 
   // async getInvoiceById(id, organizationId) {
@@ -136,7 +142,26 @@ export const invoiceService = {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid status filter');
     }
 
-    return invoiceModel.findByOrganization(organizationId, pagination);
+    const cacheFilters = {
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      status: pagination.status,
+      clientId: pagination.clientId
+    };
+
+    const cacheKey = keyBuilders.invoiceList(organizationId, cacheFilters);
+
+    return getOrSetCache(
+      cacheKey,
+      () => invoiceModel.findByOrganization(organizationId, pagination),
+      {
+        ttlSeconds: 90,
+        logContext: {
+          domain: 'invoices',
+          organizationId
+        }
+      }
+    );
   },
 
   async updateInvoice(id, data, organizationId) {
@@ -189,6 +214,9 @@ export const invoiceService = {
       throw new ApiError(StatusCodes.NOT_FOUND, 'Invoice not found');
     }
 
+    // Invalidate invoice-related cache after update
+    await invalidateInvoiceRelatedCache(organizationId, { action: 'updateInvoice', invoiceId: id });
+
     return updated;
   },
 
@@ -204,6 +232,9 @@ export const invoiceService = {
     if (!deleted.deletedCount) {
       throw new ApiError(StatusCodes.NOT_FOUND, 'Invoice not found');
     }
+
+    // Invalidate invoice-related cache after deletion
+    await invalidateInvoiceRelatedCache(organizationId, { action: 'deleteInvoice', invoiceId: id });
   }
 };
 

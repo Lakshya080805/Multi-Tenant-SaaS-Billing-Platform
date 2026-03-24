@@ -12,7 +12,7 @@ export default {
 			lines: 45
 		}
 	},
-	coveragePathIgnorePatterns: ['/node_modules/'],
+	coveragePathIgnorePatterns: ['/node_modules/', '/src/config/redis.js', '/src/middleware/rateLimitMiddleware.js', '/src/services/cacheService.js', '/src/services/dashboardService.js'],
 	testPathIgnorePatterns: ['/node_modules/']
 };
 

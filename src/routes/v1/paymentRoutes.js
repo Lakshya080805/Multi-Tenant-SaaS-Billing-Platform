@@ -5,8 +5,12 @@ import { requireRole } from '../../middleware/roleMiddleware.js';
 import { validateRequest } from '../../middleware/validationMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { paymentController } from '../../controllers/paymentController.js';
+import { paymentRateLimiter } from '../../middleware/rateLimitMiddleware.js';
+import { paymentIdempotencyMiddleware } from '../../middleware/idempotencyMiddleware.js';
 
 export const paymentRouter = express.Router();
+
+paymentRouter.use(paymentRateLimiter);
 
 /**
  * @swagger
@@ -72,6 +76,7 @@ paymentRouter.use(authenticate);
  */
 paymentRouter.post(
   '/create-order',
+  paymentIdempotencyMiddleware({ scope: 'payments:create-order' }),
   [body('invoiceId').isString().notEmpty()],
   validateRequest,
   asyncHandler(paymentController.createOrder)
@@ -115,6 +120,7 @@ paymentRouter.post(
 
 paymentRouter.post(
   '/verify',
+  paymentIdempotencyMiddleware({ scope: 'payments:verify' }),
   [
     body('razorpayOrderId').isString().notEmpty(),
     body('razorpayPaymentId').isString().notEmpty(),
@@ -160,6 +166,7 @@ paymentRouter.post(
 paymentRouter.post(
   '/invoice/:invoiceId/pay',
   requireRole('admin', 'accountant'),
+  paymentIdempotencyMiddleware({ scope: 'payments:invoice-pay' }),
   asyncHandler(paymentController.createInvoicePayment)
 );
 

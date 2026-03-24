@@ -1,0 +1,59 @@
+services:
+  api:
+    environment:
+      NODE_ENV: production
+      REDIS_ENABLED: "true"
+      REDIS_URL: ${REDIS_URL}
+      QUEUE_REDIS_URL: ${QUEUE_REDIS_URL}
+      REDIS_PREFIX: ${REDIS_PREFIX:-saas-prod}
+      REDIS_CONNECT_TIMEOUT_MS: ${REDIS_CONNECT_TIMEOUT_MS:-3000}
+      REDIS_RETRY_BASE_DELAY_MS: ${REDIS_RETRY_BASE_DELAY_MS:-100}
+      REDIS_RETRY_MAX_DELAY_MS: ${REDIS_RETRY_MAX_DELAY_MS:-5000}
+      REDIS_CIRCUIT_BREAKER_FAILURE_THRESHOLD: ${REDIS_CIRCUIT_BREAKER_FAILURE_THRESHOLD:-5}
+      REDIS_CIRCUIT_BREAKER_COOLDOWN_MS: ${REDIS_CIRCUIT_BREAKER_COOLDOWN_MS:-30000}
+
+  redis-core:
+    command:
+      [
+        "redis-server",
+        "--requirepass",
+        "${REDIS_PASSWORD}",
+        "--appendonly",
+        "yes",
+        "--appendfsync",
+        "everysec",
+        "--maxmemory",
+        "${REDIS_CORE_MAXMEMORY:-1gb}",
+        "--maxmemory-policy",
+        "${REDIS_CORE_MAXMEMORY_POLICY:-volatile-ttl}",
+        "--save",
+        "900 1",
+        "--save",
+        "300 10",
+        "--save",
+        "60 10000"
+      ]
+    ports: []
+
+  redis-queue:
+    command:
+      [
+        "redis-server",
+        "--requirepass",
+        "${REDIS_PASSWORD}",
+        "--appendonly",
+        "yes",
+        "--appendfsync",
+        "everysec",
+        "--maxmemory",
+        "${REDIS_QUEUE_MAXMEMORY:-2gb}",
+        "--maxmemory-policy",
+        "${REDIS_QUEUE_MAXMEMORY_POLICY:-noeviction}",
+        "--save",
+        "900 1",
+        "--save",
+        "300 10",
+        "--save",
+        "60 10000"
+      ]
+    ports: []

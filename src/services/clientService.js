@@ -2,6 +2,7 @@ import { v4 as uuid } from 'uuid';
 import { clientModel } from '../models/clientModel.js';
 import { ApiError } from '../utils/ApiError.js';
 import { StatusCodes } from 'http-status-codes';
+import { getOrSetCache, keyBuilders, invalidateClientRelatedCache } from './cacheService.js';
 
 export const clientService = {
   async createClient(data, organizationId) {
@@ -16,7 +17,12 @@ export const clientService = {
       notes: data.notes
     };
 
-    return clientModel.create(payload);
+    const created = await clientModel.create(payload);
+    
+    // Invalidate client-related cache after creation
+    await invalidateClientRelatedCache(organizationId, { action: 'createClient' });
+    
+    return created;
   },
 
   async getClientById(id, organizationId) {
@@ -28,7 +34,19 @@ export const clientService = {
   },
 
   async getAllClients(organizationId) {
-    return clientModel.findByOrganization(organizationId);
+    const cacheKey = keyBuilders.clientList(organizationId, {});
+
+    return getOrSetCache(
+      cacheKey,
+      () => clientModel.findByOrganization(organizationId),
+      {
+        ttlSeconds: 120,
+        logContext: {
+          domain: 'clients',
+          organizationId
+        }
+      }
+    );
   },
 
   async updateClient(id, data, organizationId) {
@@ -47,12 +65,18 @@ export const clientService = {
       throw new ApiError(StatusCodes.NOT_FOUND, 'Client not found');
     }
 
+    // Invalidate client-related cache after update
+    await invalidateClientRelatedCache(organizationId, { action: 'updateClient', clientId: id });
+
     return updated;
   },
 
   async deleteClient(id, organizationId) {
     const client = await this.getClientById(id, organizationId);
     await clientModel.deleteById(client.id);
+    
+    // Invalidate client-related cache after deletion
+    await invalidateClientRelatedCache(organizationId, { action: 'deleteClient', clientId: id });
   }
 };
 

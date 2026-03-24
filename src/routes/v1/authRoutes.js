@@ -3,8 +3,14 @@ import { body } from 'express-validator';
 import { authController } from '../../controllers/authController.js';
 import { validateRequest } from '../../middleware/validationMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { authRateLimiter, registrationRateLimiter } from '../../middleware/rateLimitMiddleware.js';
 
 export const authRouter = express.Router();
+
+authRouter.use(authRateLimiter);
+
+// Apply high-limit rate limiter only to registration endpoint
+authRouter.post('/register', registrationRateLimiter, authController.register);
 
 /**
  * @swagger

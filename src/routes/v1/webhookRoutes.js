@@ -1,8 +1,11 @@
 import express from 'express';
 import { handlePaymentWebhook } from '../../webhooks/paymentWebhook.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { webhookRateLimiter } from '../../middleware/rateLimitMiddleware.js';
 
 export const webhookRouter = express.Router();
+
+webhookRouter.use(webhookRateLimiter);
 
 /**
  * @swagger

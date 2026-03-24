@@ -3,37 +3,65 @@
 // 2. Partial network latency and reconnect storms
 // 3. Queue worker crash and recovery with no data loss
 
-const request = require('supertest');
-const { spawn, execSync } = require('child_process');
-const app = require('../../src/app');
-const redis = require('redis');
+// const request = require('supertest');
+// const { spawn, execSync } = require('child_process');
+// const app = require('../../src/app');
+// const redis = require('redis');
+
+import { jest } from '@jest/globals';
+import request from 'supertest';
+import { spawn, execSync } from 'child_process';
+
+process.env.FORCE_REDIS_IN_TEST = 'true';
+process.env.REDIS_ENABLED = 'true';
+
+jest.setTimeout(90000);
+
+const { createApp } = await import('../../src/app.js');
+const { disconnectRedis } = await import('../../src/config/redis.js');
+const { closeAllQueues } = await import('../../src/queues/queueRegistry.js');
+const { enqueueDeadLetterJob } = await import('../../src/queues/jobQueueService.js');
+
+const app = createApp();
+
+const shouldRunFailureResilience =
+  process.env.RUN_FAILURE_RESILIENCE_TESTS === 'true';
+const describeFailureResilience = shouldRunFailureResilience
+  ? describe
+  : describe.skip;
+
+function runCompose(command) {
+  execSync(`docker compose ${command}`, { stdio: 'pipe' });
+}
 
 // Helper to stop/start Redis Docker containers
 function stopRedis() {
-  execSync('docker compose stop redis-core redis-queue');
+  runCompose('stop redis-core redis-queue');
 }
 function startRedis() {
-  execSync('docker compose start redis-core redis-queue');
+  runCompose('start redis-core redis-queue');
 }
 
 // Helper to simulate network latency (Linux/WSL only)
 function addRedisLatency(ms = 500) {
   try {
-    execSync(`docker exec redis-core tc qdisc add dev eth0 root netem delay ${ms}ms`);
-    execSync(`docker exec redis-queue tc qdisc add dev eth0 root netem delay ${ms}ms`);
+    runCompose(`exec -T redis-core tc qdisc add dev eth0 root netem delay ${ms}ms`);
+    runCompose(`exec -T redis-queue tc qdisc add dev eth0 root netem delay ${ms}ms`);
   } catch {}
 }
 function clearRedisLatency() {
   try {
-    execSync('docker exec redis-core tc qdisc del dev eth0 root netem');
-    execSync('docker exec redis-queue tc qdisc del dev eth0 root netem');
+    runCompose('exec -T redis-core tc qdisc del dev eth0 root netem');
+    runCompose('exec -T redis-queue tc qdisc del dev eth0 root netem');
   } catch {}
 }
 
-describe('Failure Tests: Redis and Queue Resilience', () => {
-  afterAll(() => {
+describeFailureResilience('Failure Tests: Redis and Queue Resilience', () => {
+  afterAll(async () => {
     startRedis();
     clearRedisLatency();
+    await closeAllQueues();
+    await disconnectRedis();
   });
 
   describe('Redis unavailable at startup', () => {
@@ -89,11 +117,11 @@ describe('Failure Tests: Redis and Queue Resilience', () => {
 
   describe('Queue worker crash and recovery', () => {
     it('should not lose jobs if worker crashes', async () => {
-      // Enqueue a job
-      const jobRes = await request(app).post('/api/v1/queue/test').send({ payload: 'crash-test' });
-      expect(jobRes.statusCode).toBe(200);
+      // Enqueue a dead-letter job directly (no test route required)
+      const queued = await enqueueDeadLetterJob({ payload: 'crash-test' });
+      expect(queued).toBeTruthy();
       // Simulate worker crash (kill process)
-      execSync('docker compose restart redis-queue');
+      runCompose('restart redis-queue');
       // Wait for worker to restart and process job
       await new Promise(r => setTimeout(r, 5000));
       // Check job processed (implement a way to verify, e.g., status endpoint or DB check)

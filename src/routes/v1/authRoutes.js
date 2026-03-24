@@ -10,7 +10,19 @@ export const authRouter = express.Router();
 authRouter.use(authRateLimiter);
 
 // Apply high-limit rate limiter only to registration endpoint
-authRouter.post('/register', registrationRateLimiter, authController.register);
+// Always use validation middleware for registration
+authRouter.post(
+  '/register',
+  registrationRateLimiter,
+  [
+    body('email').isEmail(),
+    body('password').isLength({ min: 8 }),
+    body('organizationName').isString().notEmpty(),
+    body('role').optional().isIn(['admin', 'accountant', 'viewer'])
+  ],
+  validateRequest,
+  asyncHandler(authController.register)
+);
 
 /**
  * @swagger

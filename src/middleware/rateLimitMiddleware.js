@@ -334,8 +334,8 @@ export const rateLimiter = buildPolicyLimiter({
 export const authRateLimiter = buildPolicyLimiter({
   policyName: 'auth',
   windowMs: 15 * 60 * 1000,
-  max: 10000,
-  fallbackMax: 6000,
+  max: 20,
+  fallbackMax: 20,
   message: 'Too many authentication attempts, please try again later.'
 });
 

@@ -8,6 +8,15 @@ process.env.REDIS_ENABLED = 'true';
 
 const sharedBuckets = new Map();
 
+// const { buildPolicyLimiter } = await import('../../src/middleware/rateLimitMiddleware.js');
+// const testRateLimiter = buildPolicyLimiter({
+//   policyName: 'auth',
+//   windowMs: 60 * 1000,
+//   max: 5,
+//   fallbackMax: 5,
+//   message: 'Too many authentication attempts, please try again later.'
+// });
+
 class MockRedisStore {
   constructor(options = {}) {
     this.windowMs = 15 * 60 * 1000;

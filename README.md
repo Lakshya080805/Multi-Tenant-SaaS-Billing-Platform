@@ -2,6 +2,12 @@
   <strong>Production-grade backend infrastructure for a multi-tenant SaaS billing platform.</strong>
 </p>
 
+<p align="center">
+  <a href="https://multi-tenant-saas-billing-platform.onrender.com/api-docs/">
+    <img src="https://img.shields.io/badge/Live%20Demo-Visit-brightgreen?style=for-the-badge" />
+  </a>
+</p>
+
 # 🧾 SaaS Billing Platform
 
 A modern Express backend that handles organizations, clients, invoices, and payments — built with the reliability and resilience tooling you'd expect in production.
